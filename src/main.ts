@@ -3737,7 +3737,7 @@ export default class ButterEditorPlugin extends Plugin {
     // automatically show as `Butter Editor (DEV) v0.9.2-127`, while
     // production builds show `Butter Editor v0.9.2`. The counter in
     // the dev version tells you whether a rebuild actually loaded.
-    new Notice(`${this.manifest.name} v${this.manifest.version}`, 3000);
+    // new Notice(`${this.manifest.name} v${this.manifest.version}`, 3000);
 
     // Locked-file UX. When another process holds a vault file open
     // exclusively (VS Code, antivirus mid-scan, another Obsidian
