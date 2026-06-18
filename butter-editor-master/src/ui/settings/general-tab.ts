@@ -161,6 +161,8 @@ import type { SourcePurityMode } from "../welcome-modal";
    * walkthrough replay.
    */
   export function renderGeneral(this: ButterSettingTab, root: HTMLElement) {
+    this.renderWhatsNewSection(root);
+
     // Start-trial CTA first - this is the most-common first-session
     // action for any new user. Only renders while the user has never
     // activated a license and isn't mid-trial-activation; once that
@@ -393,4 +395,28 @@ import type { SourcePurityMode } from "../welcome-modal";
    */
   export function renderStartTrialCardIfApplicable(this: ButterSettingTab, _root: HTMLElement) {
     return;
+  }
+
+  /** Visible feature list so updates are easy to discover in Settings. */
+  export function renderWhatsNewSection(this: ButterSettingTab, root: HTMLElement) {
+    const group = this.createSettingGroup(root, "What's new");
+    const box = group.createDiv({ cls: "butter-whats-new" });
+    const version = this.plugin.manifest.version;
+    box.createEl("p", {
+      text: `Butter Editor v${version} — recent additions:`,
+    });
+    const list = box.createEl("ul");
+    const features = [
+      "Type / in Butter for Spoiler, Daily note, Weekly review, Meeting notes, Project plan",
+      "Zen mode: Command palette → Butter Editor: Toggle zen mode (Ctrl+Alt+Z on Windows)",
+      "Toolbar tab → style Integrated; Advanced → CM6 plugin widgets for Dataview/Tasks",
+      "Per-note override: frontmatter butter: true or butter: false",
+    ];
+    for (const line of features) {
+      list.createEl("li", { text: line });
+    }
+    box.createEl("p", {
+      cls: "butter-whats-new-hint",
+      text: "Reload Obsidian after updating plugin files so changes take effect.",
+    });
   }

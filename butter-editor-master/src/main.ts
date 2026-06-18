@@ -1898,6 +1898,11 @@ export default class ButterEditorPlugin extends Plugin {
       "Open Butter outline",
       () => this.openOutline(),
     );
+    this.addRibbonIcon(
+      "maximize-2",
+      "Toggle zen mode (Butter)",
+      () => this.toggleZenMode(),
+    );
     // Applied on layout-ready below (see applyOutlineMode).
   }
 

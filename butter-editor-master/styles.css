@@ -6956,3 +6956,23 @@ body.butter-zen-mode .status-bar {
 body.butter-zen-mode .workspace-ribbon.mod-left {
   display: none !important;
 }
+
+/* Settings → General → What's new feature list */
+.butter-whats-new {
+  padding: var(--size-4-2, 8px) var(--size-4-4, 16px);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.butter-whats-new ul {
+  margin: var(--size-2-3, 6px) 0;
+  padding-left: 1.25em;
+}
+.butter-whats-new li {
+  margin: var(--size-2-2, 4px) 0;
+}
+.butter-whats-new-hint {
+  margin-top: var(--size-4-2, 8px);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}

@@ -33,7 +33,7 @@ import {
 } from "./welcome-modal";
 
 import { renderLicense, computeLicensePhase, renderRowsFor, renderUnlicensedRows, renderPollingRows, renderTrialRows, renderLifetimeRows, renderDeactivatedRows, renderInvalidatedRows, reasonCopyFor, renderExpiredRows, renderUnknownRows, trialHeadlineFor, trialStatLineFor, formatActivationDate, formatRelativeTime, renderKeyRow, renderPasteKeyRow, renderRecoveryRow, renderDevicesSection, renderDeviceListSkeleton, renderDeviceRow, renderCurrentDeviceFallback, renderDeviceUtilities, renderSupportSection, computeRemaining, scheduleTrialPoll, friendlyError } from "./settings/license-tab";
-import { renderGeneral, renderGeneralIntroSections, renderBehavior, renderAdvanced, renderStartTrialCardIfApplicable } from "./settings/general-tab";
+import { renderGeneral, renderGeneralIntroSections, renderBehavior, renderAdvanced, renderStartTrialCardIfApplicable, renderWhatsNewSection } from "./settings/general-tab";
 import { TRIAL_LENGTH_DAYS } from "../integration/license/policy";
 import { renderToolbar, renderLayoutSection, createSettingGroup, renderPrimaryToolbarSection, renderTableToolbarSection, renderLayoutEditor, openMoveToSubmenuMenu, openSubmenuEditModal, wireDrag } from "./settings/toolbar-tab";
 import { renderOutlineSection } from "./settings/outline-tab";
@@ -570,6 +570,10 @@ export class ButterSettingTab extends PluginSettingTab {
 
   public renderStartTrialCardIfApplicable(root: HTMLElement) {
     return renderStartTrialCardIfApplicable.call(this, root);
+  }
+
+  public renderWhatsNewSection(root: HTMLElement) {
+    return renderWhatsNewSection.call(this, root);
   }
 
   public renderToolbar(root: HTMLElement) {
