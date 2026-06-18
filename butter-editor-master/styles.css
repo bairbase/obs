@@ -2967,9 +2967,8 @@ body.is-mobile .butter-editor-view .butter-table-toolbar {
 }
 
 /* ── Properties panel ── */
-/* Obsidian's CSS handles most metadata styling via native class names.
-   Butter adds compact row alignment so checkboxes, dropdowns, and text
-   inputs line up with keys without excess vertical padding. */
+/* Compact alignment for every property value type (text, number,
+   date, checkbox, tags, aliases, multitext, add button). */
 .butter-properties-wrapper {
   padding-top: var(--size-2-3, 6px);
 }
@@ -3076,6 +3075,78 @@ body.is-mobile .butter-editor-view .butter-table-toolbar {
 .butter-editor-view .butter-properties-wrapper .metadata-add-button {
   margin-top: var(--size-2-3, 6px);
   padding: 4px 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-content,
+.butter-editor-view .butter-properties-wrapper .metadata-properties-title {
+  padding: 0;
+  margin: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-value > * {
+  margin-block: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-value input,
+.butter-editor-view .butter-properties-wrapper .metadata-property-value [contenteditable="true"] {
+  vertical-align: middle;
+}
+
+.butter-editor-view .butter-properties-wrapper .multi-select-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 8px;
+  min-height: 22px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.butter-editor-view .butter-properties-wrapper .multi-select-pill-content {
+  padding: 0;
+  line-height: 1.3;
+}
+
+.butter-editor-view .butter-properties-wrapper .multi-select-pill-remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .multi-select-input {
+  min-height: 22px;
+  line-height: 1.4;
+  padding: 2px 4px;
+  margin: 0;
+  min-width: 3em;
+}
+
+.butter-editor-view .butter-properties-wrapper .text-icon-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  min-height: unset;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.butter-editor-view .butter-properties-wrapper .text-button-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property[data-property-type] {
+  min-height: 28px;
+}
+
+.butter-editor-view .butter-properties-wrapper .collapse-indicator {
+  margin: 0;
+  align-self: center;
 }
 
 /* Placeholder for empty contentEditable multi-select-input */
@@ -3510,40 +3581,125 @@ body:not(.is-mobile) .butter-view-root .view-header-title-container:hover {
   padding-bottom: 24px;
 }
 
-/* Settings rows: align toggles, dropdowns, and text on one line. */
-.butter-settings-root .butter-setting-group > .setting-items > .setting-item {
+/* ── Settings: compact rows for all control types ──────────────
+   Applies to toggles, dropdowns, text fields, textareas, buttons,
+   icons, preset cards' inline rows, and toolbar layout editor. */
+.butter-settings-root .setting-item:not(.setting-item-heading) {
   align-items: center;
   padding-block: var(--size-4-2, 8px);
+  gap: var(--size-4-2, 8px);
 }
 
-.butter-settings-root .butter-setting-group > .setting-items > .setting-item .setting-item-info {
-  padding-right: var(--size-4-2, 8px);
+.butter-settings-root .setting-item-heading {
+  align-items: center;
+  padding-block: var(--size-4-3, 12px) var(--size-2-3, 6px);
 }
 
-.butter-settings-root .butter-setting-group > .setting-items > .setting-item .setting-item-control {
+.butter-settings-root .setting-item-info {
+  padding: 0;
   align-self: center;
-  margin-top: 0;
-  padding-top: 0;
+}
+
+.butter-settings-root .setting-item-name {
+  padding: 0;
+  line-height: 1.35;
+}
+
+.butter-settings-root .setting-item-description {
+  padding-top: 2px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.butter-settings-root .setting-item-control {
+  align-self: center;
+  margin: 0;
+  padding: 0;
   flex-shrink: 0;
 }
 
-.butter-settings-root .setting-item-control .dropdown {
-  min-height: unset;
-}
-
-.butter-settings-root .setting-item-control select,
-.butter-settings-root .setting-item-control .dropdown {
+.butter-settings-root .setting-item-control input[type="text"],
+.butter-settings-root .setting-item-control input[type="search"],
+.butter-settings-root .setting-item-control input[type="number"],
+.butter-settings-root .setting-item-control input[type="email"],
+.butter-settings-root .setting-item-control textarea {
+  min-height: 28px;
   padding: 4px 8px;
   line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.butter-settings-root .setting-item-control .text-input-wrapper,
+.butter-settings-root .setting-item-control .search-input-container {
+  padding: 0;
+  margin: 0;
+}
+
+.butter-settings-root .setting-item-control button {
+  margin: 0;
+  min-height: 28px;
+  padding: 4px 12px;
+  line-height: 1.4;
+}
+
+.butter-settings-root .setting-item-control .clickable-icon {
+  padding: 4px;
+  margin: 0;
+  align-self: center;
 }
 
 .butter-settings-root .checkbox-container {
   margin: 0;
+  height: auto;
+  align-self: center;
+}
+
+.butter-settings-root .setting-item-control .dropdown,
+.butter-settings-root .setting-item-control select {
+  min-height: 28px;
+  min-width: unset;
+  padding: 4px 8px;
+  line-height: 1.4;
+}
+
+.butter-settings-root .setting-item-control .slider {
+  margin: 0;
+  align-self: center;
 }
 
 .butter-settings-root .butter-whats-new {
   padding: var(--size-4-2, 8px) 0 0;
   margin: 0;
+}
+
+.butter-settings-root .butter-layout-row {
+  min-height: 32px;
+  padding-block: 4px;
+}
+
+.butter-settings-root .butter-layout-add-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+}
+
+.butter-settings-root .butter-submenu-label-input {
+  min-height: 28px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+/* Welcome / submenu modals spawned from settings */
+.butter-welcome-modal .setting-item,
+.butter-settings-root .modal .setting-item {
+  align-items: center;
+  padding-block: var(--size-4-2, 8px);
+}
+
+.butter-welcome-modal .setting-item-control,
+.butter-settings-root .modal .setting-item-control {
+  align-self: center;
+  margin: 0;
+  padding: 0;
 }
 
 /* ── License tab - minimal hooks for native Setting rows ─────── */
