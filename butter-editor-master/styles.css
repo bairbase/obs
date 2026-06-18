@@ -2967,11 +2967,115 @@ body.is-mobile .butter-editor-view .butter-table-toolbar {
 }
 
 /* ── Properties panel ── */
-/* Obsidian's CSS handles all metadata styling via native class names.
-   We only need the wrapper for layout + minor fixes where our DOM
-   context doesn't perfectly match the native editor context. */
+/* Obsidian's CSS handles most metadata styling via native class names.
+   Butter adds compact row alignment so checkboxes, dropdowns, and text
+   inputs line up with keys without excess vertical padding. */
 .butter-properties-wrapper {
-  padding-top: var(--size-4-2, 8px);
+  padding-top: var(--size-2-3, 6px);
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-container {
+  padding: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-properties-heading {
+  padding: var(--size-2-3, 6px) 0;
+  margin-bottom: var(--size-2-2, 4px);
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--size-4-2, 8px);
+  padding: 3px 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property:last-child {
+  border-bottom: none;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  align-self: center;
+  opacity: 0.75;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-key {
+  flex: 0 0 28%;
+  max-width: 200px;
+  min-width: 72px;
+  padding: 0;
+  align-self: center;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-key-input {
+  padding: 2px 4px;
+  min-height: unset;
+  line-height: var(--line-height-normal, 1.5);
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-property-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  align-self: center;
+  padding: 0;
+  min-height: unset;
+}
+
+.butter-editor-view
+  .butter-properties-wrapper
+  .metadata-property[data-property-type="checkbox"]
+  .metadata-property-value {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-input-checkbox {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-input-text,
+.butter-editor-view .butter-properties-wrapper .metadata-input-number,
+.butter-editor-view .butter-properties-wrapper input[type="date"],
+.butter-editor-view .butter-properties-wrapper input[type="datetime-local"] {
+  width: 100%;
+  max-width: 100%;
+  padding: 2px 6px;
+  min-height: 26px;
+  height: auto;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.butter-editor-view .butter-properties-wrapper .multi-select-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  min-height: unset;
+  width: 100%;
+}
+
+.butter-editor-view .butter-properties-wrapper .metadata-add-button {
+  margin-top: var(--size-2-3, 6px);
+  padding: 4px 0;
 }
 
 /* Placeholder for empty contentEditable multi-select-input */
@@ -3404,6 +3508,42 @@ body:not(.is-mobile) .butter-view-root .view-header-title-container:hover {
 
 .butter-settings-tab-body {
   padding-bottom: 24px;
+}
+
+/* Settings rows: align toggles, dropdowns, and text on one line. */
+.butter-settings-root .butter-setting-group > .setting-items > .setting-item {
+  align-items: center;
+  padding-block: var(--size-4-2, 8px);
+}
+
+.butter-settings-root .butter-setting-group > .setting-items > .setting-item .setting-item-info {
+  padding-right: var(--size-4-2, 8px);
+}
+
+.butter-settings-root .butter-setting-group > .setting-items > .setting-item .setting-item-control {
+  align-self: center;
+  margin-top: 0;
+  padding-top: 0;
+  flex-shrink: 0;
+}
+
+.butter-settings-root .setting-item-control .dropdown {
+  min-height: unset;
+}
+
+.butter-settings-root .setting-item-control select,
+.butter-settings-root .setting-item-control .dropdown {
+  padding: 4px 8px;
+  line-height: 1.4;
+}
+
+.butter-settings-root .checkbox-container {
+  margin: 0;
+}
+
+.butter-settings-root .butter-whats-new {
+  padding: var(--size-4-2, 8px) 0 0;
+  margin: 0;
 }
 
 /* ── License tab - minimal hooks for native Setting rows ─────── */
@@ -6959,7 +7099,7 @@ body.butter-zen-mode .workspace-ribbon.mod-left {
 
 /* Settings → General → What's new feature list */
 .butter-whats-new {
-  padding: var(--size-4-2, 8px) var(--size-4-4, 16px);
+  padding: 0;
   font-size: var(--font-ui-small);
   color: var(--text-muted);
   line-height: 1.5;
@@ -6972,7 +7112,7 @@ body.butter-zen-mode .workspace-ribbon.mod-left {
   margin: var(--size-2-2, 4px) 0;
 }
 .butter-whats-new-hint {
-  margin-top: var(--size-4-2, 8px);
+  margin-top: var(--size-2-3, 6px);
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
 }
