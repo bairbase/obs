@@ -13,30 +13,8 @@ import { LINKS } from "../../integration/license/links";
    * email/privacy/terms links). Trial activation morphs the frame in
    * place via `pendingTrialActivation`.
    */
-  export function renderLicense(this: ButterSettingTab, root: HTMLElement) {
-    // Bump the generation so any in-flight poll-tick from a prior
-    // render bails before mutating settings or scheduling next.
-    this.pollGeneration++;
-    if (this.trialPollTimer != null) {
-      window.clearTimeout(this.trialPollTimer);
-      this.trialPollTimer = null;
-    }
-
-    const phase = this.computeLicensePhase();
-    // The License settings group: native Obsidian section group
-    // (heading + body). The body holds the ticket on top, then
-    // native hairline-divided detail rows below, all in one card.
-    // Same chrome as Devices + Support below.
-    const section = this.createSettingGroup(root, "License", undefined);
-    section.addClass("butter-license-section");
-    this.renderRowsFor(section, phase);
-
-    this.renderDevicesSection(root);
-    this.renderSupportSection(root);
-
-    // If we're in the polling phase, kick the inline poll. Idempotent
-    // because we cleared the timer above.
-    if (phase === "polling") this.scheduleTrialPoll();
+  export function renderLicense(this: ButterSettingTab, _root: HTMLElement) {
+    return;
   }
 
 /** Resolve the effective License-tab phase from the plugin's

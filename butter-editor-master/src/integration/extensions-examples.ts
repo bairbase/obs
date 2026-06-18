@@ -139,7 +139,7 @@ registerSyntaxExtension({
   serializer: (state, node) => {
     const n = node as { attrs: { label?: string } };
     const label = n.attrs.label ? ` ${n.attrs.label}` : "";
-    state.write(`:::spoiler${label}\n`);
+    state.write(`::: spoiler${label}\n`);
     state.renderContent(node);
     state.write(":::");
     state.closeBlock(node);

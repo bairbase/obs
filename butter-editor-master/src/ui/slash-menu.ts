@@ -9,7 +9,7 @@ import { App, setIcon } from "obsidian";
 import { Plugin as PMPlugin, PluginKey, Selection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { setBlockType, wrapIn } from "prosemirror-commands";
-import type { Schema } from "prosemirror-model";
+import { Fragment, type Schema, type Node as PMNode } from "prosemirror-model";
 
 // ═══════════════════════════════════════════
 //  Items
@@ -288,6 +288,50 @@ export const SLASH_ITEMS: SlashItem[] = [
     keywords: ["quote", "callout", "cite"],
     run: (v, s) => insertCallout(v, s, "quote"),
   },
+
+  // ── Spoiler ─────────────────────────────────────────────────
+  {
+    id: "spoiler",
+    label: "Spoiler",
+    desc: "::: spoiler block",
+    icon: "eye-off",
+    keywords: ["spoiler", "hidden", "collapse", "secret"],
+    run: (v, s) => insertSpoiler(v, s),
+  },
+
+  // ── Templates ───────────────────────────────────────────────
+  {
+    id: "template-daily",
+    label: "Daily note",
+    desc: "Today's date + task list",
+    icon: "calendar",
+    keywords: ["template", "daily", "journal", "today"],
+    run: (v, s) => insertDailyTemplate(v, s),
+  },
+  {
+    id: "template-meeting",
+    label: "Meeting notes",
+    desc: "Agenda + action items",
+    icon: "users",
+    keywords: ["template", "meeting", "agenda", "minutes"],
+    run: (v, s) => insertMeetingTemplate(v, s),
+  },
+  {
+    id: "template-weekly",
+    label: "Weekly review",
+    desc: "Wins, challenges, next week",
+    icon: "calendar-check",
+    keywords: ["template", "weekly", "review", "retrospective"],
+    run: (v, s) => insertWeeklyTemplate(v, s),
+  },
+  {
+    id: "template-project",
+    label: "Project plan",
+    desc: "Goals, timeline, notes",
+    icon: "folder-kanban",
+    keywords: ["template", "project", "plan", "goals"],
+    run: (v, s) => insertProjectTemplate(v, s),
+  },
 ];
 
 function insertTable(
@@ -408,6 +452,121 @@ export function insertCallout(
   );
   view.dispatch(tr);
   view.focus();
+}
+
+function makeFlatBulletItem(schema: Schema, text = ""): PMNode | null {
+  const { list_item, paragraph } = schema.nodes;
+  if (!list_item || !paragraph) return null;
+  const para = text
+    ? paragraph.create(null, schema.text(text))
+    : paragraph.create();
+  return list_item.create(
+    {
+      kind: "bullet",
+      depth: 0,
+      tight: true,
+      checked: null,
+      start: null,
+    },
+    para,
+  );
+}
+
+function insertFragment(view: EditorView, nodes: PMNode[]) {
+  const { from, to } = view.state.selection;
+  const frag = Fragment.from(nodes);
+  const tr = view.state.tr.replaceWith(from, to, frag);
+  const pos = Math.min(from + frag.size, tr.doc.content.size);
+  tr.setSelection(Selection.near(tr.doc.resolve(pos), -1));
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+}
+
+function insertSpoiler(view: EditorView, schema: Schema, label = "") {
+  const spoiler = schema.nodes.butter_spoiler;
+  if (!spoiler) return;
+  const para = schema.nodes.paragraph.create();
+  const node = spoiler.create({ label }, para);
+  const tr = view.state.tr.replaceSelectionWith(node).scrollIntoView();
+  const targetPos = Math.min(view.state.selection.from + 2, tr.doc.content.size);
+  tr.setSelection(Selection.near(tr.doc.resolve(targetPos)));
+  view.dispatch(tr);
+  view.focus();
+}
+
+function insertDailyTemplate(view: EditorView, schema: Schema) {
+  const title = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const heading = schema.nodes.heading.create({ level: 2 }, schema.text(title));
+  const items = ["Tasks", "Notes", "Ideas"]
+    .map((label) => makeFlatBulletItem(schema, `${label}: `))
+    .filter((n): n is PMNode => n != null);
+  insertFragment(view, [heading, ...items]);
+}
+
+function insertMeetingTemplate(view: EditorView, schema: Schema) {
+  const callout = schema.nodes.obsidian_callout;
+  if (!callout) return;
+  const titlePara = schema.nodes.paragraph.create(null, schema.text("Meeting notes"));
+  const calloutNode = callout.create({ calloutType: "info" }, titlePara);
+  const agenda = schema.nodes.heading.create({ level: 2 }, schema.text("Agenda"));
+  const agendaBody = schema.nodes.paragraph.create();
+  const actions = schema.nodes.heading.create({ level: 2 }, schema.text("Action items"));
+  const actionItem = makeFlatBulletItem(schema);
+  if (!actionItem) return;
+  insertFragment(view, [calloutNode, agenda, agendaBody, actions, actionItem]);
+}
+
+function insertWeeklyTemplate(view: EditorView, schema: Schema) {
+  const weekOf = new Date().toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const heading = schema.nodes.heading.create(
+    { level: 2 },
+    schema.text(`Weekly review — ${weekOf}`),
+  );
+  const section = (title: string) => {
+    const h = schema.nodes.heading.create({ level: 3 }, schema.text(title));
+    const item = makeFlatBulletItem(schema);
+    return item ? [h, item] : [h];
+  };
+  insertFragment(view, [
+    heading,
+    ...section("Wins"),
+    ...section("Challenges"),
+    ...section("Next week"),
+  ]);
+}
+
+function insertProjectTemplate(view: EditorView, schema: Schema) {
+  const callout = schema.nodes.obsidian_callout;
+  if (!callout) return;
+  const title = schema.nodes.heading.create(
+    { level: 2 },
+    schema.text("Project name"),
+  );
+  const intro = callout.create(
+    { calloutType: "tip" },
+    schema.nodes.paragraph.create(null, schema.text("Brief project description")),
+  );
+  const goalsH = schema.nodes.heading.create({ level: 3 }, schema.text("Goals"));
+  const goalItem = makeFlatBulletItem(schema, "Goal 1");
+  const timelineH = schema.nodes.heading.create({ level: 3 }, schema.text("Timeline"));
+  const milestone = makeFlatBulletItem(schema, "Milestone — date");
+  const notesH = schema.nodes.heading.create({ level: 3 }, schema.text("Notes"));
+  const notesBody = schema.nodes.paragraph.create();
+  const blocks: PMNode[] = [title, intro, goalsH];
+  if (goalItem) blocks.push(goalItem);
+  blocks.push(timelineH);
+  if (milestone) blocks.push(milestone);
+  blocks.push(notesH, notesBody);
+  insertFragment(view, blocks);
 }
 
 // ═══════════════════════════════════════════

@@ -6894,3 +6894,65 @@ body.butter-is-dragging * {
 body.is-mobile.butter-is-dragging {
   touch-action: none !important;
 }
+
+/* ── Spoiler block (::: spoiler) ─────────────────────────────── */
+.ProseMirror .butter-spoiler {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin: var(--size-4-2, 8px) 0;
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+.ProseMirror .butter-spoiler-header {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2, 4px);
+  width: 100%;
+  margin: 0;
+  padding: var(--size-4-2, 8px) var(--size-4-3, 12px);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+.ProseMirror .butter-spoiler-header:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.ProseMirror .butter-spoiler-chevron {
+  flex-shrink: 0;
+  width: 1em;
+}
+.ProseMirror .butter-spoiler-content {
+  padding: 0 var(--size-4-3, 12px) var(--size-4-2, 8px);
+}
+.ProseMirror .butter-spoiler-content[hidden] {
+  display: none !important;
+}
+
+/* ── Zen mode (command palette: Toggle zen mode) ─────────────── */
+body.butter-zen-mode .mod-left-split,
+body.butter-zen-mode .mod-right-split {
+  display: none !important;
+}
+body.butter-zen-mode .side-dock-ribbon.mod-left,
+body.butter-zen-mode .side-dock-ribbon.mod-right {
+  display: none !important;
+}
+body.butter-zen-mode .butter-toolbar,
+body.butter-zen-mode .butter-toolbar-stack,
+body.butter-zen-mode .butter-mobile-toolbar,
+body.butter-zen-mode .butter-mobile-table-toolbar,
+body.butter-zen-mode .butter-mobile-bar {
+  display: none !important;
+}
+body.butter-zen-mode .status-bar {
+  display: none !important;
+}
+body.butter-zen-mode .workspace-ribbon.mod-left {
+  display: none !important;
+}

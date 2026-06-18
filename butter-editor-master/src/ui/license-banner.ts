@@ -107,110 +107,14 @@ export interface LicenseBanner {
  */
 
 export function mountLicenseBanner(
-  viewContainer: HTMLElement,
-  insertBeforeEl: HTMLElement,
-  wrapperEl: HTMLElement,
-  plugin: ButterEditorPlugin,
-  leafEl?: HTMLElement,
+  _viewContainer: HTMLElement,
+  _insertBeforeEl: HTMLElement,
+  _wrapperEl: HTMLElement,
+  _plugin: ButterEditorPlugin,
+  _leafEl?: HTMLElement,
 ): LicenseBanner {
-  let bannerEl: HTMLElement | null = null;
-
-  const placeAsFloatingPill = () => {
-    if (!leafEl) return;
-    const contentEl = leafEl.querySelector(":scope > .view-content");
-    if (contentEl) {
-      if (wrapperEl.parentElement !== contentEl) {
-        contentEl.prepend(wrapperEl);
-      }
-    } else {
-      leafEl.prepend(wrapperEl);
-    }
-  };
-
-  /** Mobile: place the banner inside .butter-editor-view, above the inline title. */
-  const placeAboveTitle = () => {
-    if (wrapperEl.nextElementSibling !== insertBeforeEl) {
-      insertBeforeEl.parentElement?.insertBefore(wrapperEl, insertBeforeEl);
-    }
-  };
-
-  const render = () => {
-    const status = plugin.licenseStatus;
-    const visible = !(status === "valid" || status === "trial");
-
-    if (!visible) {
-      if (bannerEl) {
-        bannerEl.remove();
-        bannerEl = null;
-      }
-      wrapperEl.remove();
-      return;
-    }
-
-    wrapperEl.classList.add("is-pill");
-
-    if (!bannerEl) {
-      bannerEl = wrapperEl.createDiv({ cls: BANNER_CLASS });
-      bannerEl.setAttribute("role", "status");
-      bannerEl.setAttribute("aria-live", "polite");
-    }
-
-    if (Platform.isMobile) {
-      placeAboveTitle();
-    } else {
-      placeAsFloatingPill();
-    }
-    // Ensure view-content has relative positioning for the absolute pill
-    wrapperEl.classList.add("is-pill");
-
-    bannerEl.empty();
-
-    const isTrialAvailable = status !== "expired" && !plugin.settings.activatedAt && !plugin.settings.everValidated;
-
-    const iconEl = bannerEl.createSpan({ cls: `${BANNER_CLASS}-icon` });
-    setIcon(iconEl, "lock");
-
-    const stateText = status === "expired" ? "Trial expired"
-      : status === "unknown" ? "Checking license…"
-      : isTrialAvailable ? "Free trial available" : "License required";
-    bannerEl.createSpan({ cls: `${BANNER_CLASS}-state`, text: stateText });
-    bannerEl.createSpan({ cls: `${BANNER_CLASS}-separator`, text: "•" });
-    bannerEl.createSpan({ cls: `${BANNER_CLASS}-readonly`, text: "Read-only" });
-
-    const actions = bannerEl.createDiv({ cls: `${BANNER_CLASS}-actions` });
-
-    const enterBtn = actions.createEl("button", { text: "Enter key" });
-    enterBtn.addEventListener("click", () => {
-      plugin.openSettings("license");
-    });
-
-    if (status !== "unknown") {
-      const purchaseBtn = actions.createEl("button", { text: "Purchase" });
-      purchaseBtn.addEventListener("click", () => {
-        plugin.startLifetimeCheckoutFlow();
-      });
-    }
-
-    if (isTrialAvailable) {
-      const trialBtn = actions.createEl("button", { cls: "mod-cta", text: "Start trial" });
-      trialBtn.addEventListener("click", () => {
-        trialBtn.disabled = true;
-        trialBtn.innerText = "Starting…";
-        plugin.startTrialFlow();
-      });
-    }
-  };
-
-  render();
-
   return {
-    refresh: render,
-    destroy: () => {
-      if (bannerEl) {
-        bannerEl.remove();
-        bannerEl = null;
-      }
-      wrapperEl.remove();
-    },
+    refresh: () => {},
+    destroy: () => {},
   };
 }

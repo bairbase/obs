@@ -192,11 +192,6 @@ export class WelcomeModal extends Modal {
         "You can revisit this choice - along with Butter's other settings - anytime under settings → Butter editor → general.",
     });
 
-    const status = this.plugin.licenseStatus;
-    if (status !== "valid") {
-      this.renderTrialSection(contentEl);
-    }
-
     const btnRow = contentEl.createDiv({
       cls: "modal-button-container butter-welcome-button-row",
     });

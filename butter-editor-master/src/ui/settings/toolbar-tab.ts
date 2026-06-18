@@ -109,21 +109,15 @@ export function renderToolbar(this: ButterSettingTab, root: HTMLElement) {
       if (segment === "desktop") {
         new Setting(layoutItems)
           .setName("Toolbar style")
-          .setDesc("Attached sits as a chrome row at the edge of the pane. Detached floats as a card inside the editor.")
+          .setDesc("Attached sits as a chrome row at the edge of the pane. Detached floats as a card inside the editor. Integrated merges the toolbar into the view header.")
           .addDropdown((d) =>
-            // Integrated is implemented but hidden from this dropdown
-            // until the design pass for view-header layout is finalized.
-            // The setting still works if set programmatically.
             d
               .addOptions({
                 attached: "Attached",
                 detached: "Detached",
+                integrated: "Integrated",
               })
-              .setValue(
-                this.plugin.settings.toolbarStyle === "integrated"
-                  ? "attached"
-                  : this.plugin.settings.toolbarStyle,
-              )
+              .setValue(this.plugin.settings.toolbarStyle)
               .onChange(async (v) => {
                 this.plugin.settings.toolbarStyle = v as "detached" | "attached" | "integrated";
                 await this.plugin.saveSettings();
@@ -132,8 +126,21 @@ export function renderToolbar(this: ButterSettingTab, root: HTMLElement) {
           );
 
         new Setting(layoutItems)
+          .setName("Show title in integrated header")
+          .setDesc("When toolbar style is Integrated, show the note title as a pill in the view header. Ignored for Attached and Detached.")
+          .addToggle((t) =>
+            t
+              .setValue(this.plugin.settings.integratedShowTitle)
+              .onChange(async (v) => {
+                this.plugin.settings.integratedShowTitle = v;
+                await this.plugin.saveSettings();
+                this.plugin.applyToolbarPositionToAllViews();
+              }),
+          );
+
+        new Setting(layoutItems)
           .setName("Toolbar position")
-          .setDesc("Top: pins above the editor content. Bottom: pins below.")
+          .setDesc("Top: pins above the editor content. Bottom: pins below. Ignored when toolbar style is Integrated.")
           .addDropdown((d) =>
             d
               .addOptions({ top: "Pin to top", bottom: "Pin to bottom" })

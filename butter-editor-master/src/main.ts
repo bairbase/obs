@@ -9,18 +9,14 @@ import {
   Platform,
   TFile,
   WorkspaceLeaf,
+  type App,
 } from "obsidian";
 
 // Extensions MUST be registered before schema.ts or obsidian-md-bridge
 // evaluate their module bodies - those are where the registry is
 // read to build the live schema / token handlers / serializers.
-// The internal Extension API exists, but no example extensions are
-// activated in shipped builds. The dogfooded `:::spoiler` block +
-// `@username` inline atom previously imported from
-// `./integration/extensions-examples` are now developer reference
-// only (see that file's header). To turn them back on for local
-// dev / testing, re-add the side-effect import here ABOVE the
-// schema/parser/serializer imports below.
+// Spoiler block + @mention examples ship enabled for slash-menu use.
+import "./integration/extensions-examples";
 
 import { parser } from "./core/parser";
 import { serializer } from "./core/serializer";
@@ -58,9 +54,7 @@ import { ButterOutlineView, VIEW_TYPE_BUTTER_OUTLINE } from "./ui/outline-view";
 import { scrollHost } from "./util/dom-utils";
 import { ButterSettingTab } from "./ui/settings-tab";
 import { installWordCountBridge } from "./ui/wordcount-bridge";
-import { WelcomeModal } from "./ui/welcome-modal";
 import { LicenseClient, LicenseClientError, setPluginVersion } from "./integration/license/client";
-import { LINKS } from "./integration/license/links";
 import {
   BUTTER_HOVER_SOURCE,
 } from "./editor/nodeviews";
@@ -71,10 +65,15 @@ import { ButterLockedFileView } from "./views/ButterLockedFileView";
 import { ButterEditorView } from "./views/ButterEditorView";
 import { ErrorLogModal } from "./ui/modals/ErrorLogModal";
 import { CanonicalizeVaultModal } from "./ui/modals/CanonicalizeVaultModal";
+import { shouldOpenInButter } from "./util/butter-preference";
 
 // ═══════════════════════════════════════════
 //  View-swap helpers - preserve caret across mode changes
 // ═══════════════════════════════════════════
+
+function butterPluginFromApp(app: App): ButterEditorPlugin | undefined {
+  return app.plugins?.plugins?.["butter-editor"] as ButterEditorPlugin | undefined;
+}
 
 /**
  * Swap a Butter view's leaf to MarkdownView while preserving the
@@ -144,6 +143,8 @@ async function switchToMode(
   const line = captureLine(leaf);
 
   if (mode === "butter") {
+    const plugin = butterPluginFromApp(leaf.view.app);
+    plugin?.markExplicitButterOpen(file.path);
     await leaf.setViewState(
       {
         type: VIEW_TYPE_BUTTER,
@@ -209,6 +210,8 @@ export function modeIcon(mode: ButterViewMode): string {
  */
 function swapMarkdownToButter(view: MarkdownView) {
   if (!view.file) return;
+  const plugin = butterPluginFromApp(view.app);
+  plugin?.markExplicitButterOpen(view.file.path);
   const line = visibleHeadingLineMD(view);
   void view.leaf.setViewState(
     {
@@ -346,8 +349,9 @@ export interface ButterSettings {
    *   • detached: body-width floating card with backdrop blur, sits
    *     inside the editor content with sticky positioning. Visually
    *     "above" the document like a HUD.
-   *   • integrated: TBD - merge toolbar controls into the view-header
-   *     row itself for the densest chrome (design pending).
+   *   • integrated: merge toolbar controls into the view-header row
+   *     itself for the densest chrome — toolbar lives between title
+   *     and view-actions.
    */
   toolbarStyle: "attached" | "detached" | "integrated";
   /**
@@ -373,6 +377,8 @@ export interface ButterSettings {
    * Templater live, etc. - at the cost of more memory + CPU per edit.
    */
   enableCM6Bridge: boolean;
+  /** Plugin version last shown in the boot toast. Empty = never shown. */
+  lastNotifiedVersion: string;
   frontmatterVisibility: "match" | "visible" | "hidden";
   showComments: boolean;
   showListIndentGuides: boolean;
@@ -704,6 +710,7 @@ const DEFAULT_SETTINGS: ButterSettings = {
   integratedShowTitle: true,
   viewCycleModes: ["source", "live", "reading", "butter"],
   enableCM6Bridge: false,
+  lastNotifiedVersion: "",
   frontmatterVisibility: "match",
   showComments: false,
   showListIndentGuides: true,
@@ -769,6 +776,7 @@ const DEFAULT_SETTINGS: ButterSettings = {
  *  doesn't show residue after disable/uninstall. */
 const BUTTER_BODY_CLASSES = [
   "butter-no-anim",
+  "butter-zen-mode",
   "butter-status-bar-hide",
   "butter-scroll-hide",
   "butter-mobile-active",
@@ -798,6 +806,45 @@ export default class ButterEditorPlugin extends Plugin {
    *  right-click "Settings" item) can pre-select a sub-tab before
    *  opening the modal. */
   private settingTab: ButterSettingTab | null = null;
+  /** Paths the user explicitly opened in Butter this session. */
+  private explicitButterOpens = new Set<string>();
+  private zenModeActive = false;
+
+  /** Mark a note as intentionally opened in Butter (manual switch). */
+  public markExplicitButterOpen(path: string) {
+    this.explicitButterOpens.add(path);
+  }
+
+  public isExplicitButterOpen(path: string): boolean {
+    return this.explicitButterOpens.has(path);
+  }
+
+  public toggleZenMode() {
+    const inButter =
+      this.app.workspace.getActiveViewOfType(ButterEditorView) != null;
+    if (!this.zenModeActive && !inButter) {
+      new Notice("Open a note in Butter first", 2500);
+      return;
+    }
+    this.zenModeActive = !this.zenModeActive;
+    activeDocument.body.classList.toggle("butter-zen-mode", this.zenModeActive);
+    new Notice(this.zenModeActive ? "Zen mode on" : "Zen mode off", 2000);
+  }
+
+  /** Turn off zen styling when the user leaves a Butter view. */
+  public syncZenModeWithWorkspace() {
+    if (!this.zenModeActive) return;
+    const inButter =
+      this.app.workspace.getActiveViewOfType(ButterEditorView) != null;
+    if (!inButter) {
+      this.zenModeActive = false;
+      activeDocument.body.classList.remove("butter-zen-mode");
+    }
+  }
+
+  public isZenModeActive(): boolean {
+    return this.zenModeActive;
+  }
 
   /** Worker client for licensing. Initialized in onload(). */
   licenseClient!: LicenseClient;
@@ -841,6 +888,7 @@ export default class ButterEditorPlugin extends Plugin {
       | "advanced"
       | "license",
   ): void {
+    if (subtab === "license") subtab = "general";
     if (subtab && this.settingTab) {
       this.settingTab.activeTab = subtab;
     }
@@ -855,25 +903,11 @@ export default class ButterEditorPlugin extends Plugin {
   isActivatingTrialFlow = false;
 
   startTrialFlow(): void {
-    this.isActivatingTrialFlow = true;
-    if (this.settingTab) {
-      void this.settingTab.beginTrialActivation();
-    }
-    this.openSettings("license");
+    return;
   }
 
   startLifetimeCheckoutFlow(): void {
-    window.open(LINKS.buyLifetime(this.settings.deviceId), "_blank");
-
-    if (!this.settings.licenseKey) {
-      new Notice(
-        "Complete your purchase in the browser, then use the license link on the welcome page to activate Butter.",
-        8000,
-      );
-      return;
-    }
-
-    this.startUpgradePolling();
+    return;
   }
 
   private startUpgradePolling(): void {
@@ -1025,39 +1059,8 @@ export default class ButterEditorPlugin extends Plugin {
    * to the License tab + toast. On failure: opens to the License tab so
    * the user sees the error context inline.
    */
-  async handleRecoveryDeepLink(rawKey?: string, rawCustomer?: string): Promise<void> {
-    const key = (rawKey ?? "").trim();
-    const customer = (rawCustomer ?? "").trim();
-    if (!key) {
-      new Notice("Recovery link is missing the license key.", 7000);
-      this.openSettings("license");
-      return;
-    }
-    // Email is informational only; we don't enforce it here. The
-    // Worker checks the key against Polar's records.
-    try {
-      const session = await this.licenseClient.validateAndIssueSession(
-        key,
-        this.settings.deviceId,
-      );
-      this.settings.licenseKey = key;
-      this.settings.sessionToken = session.sessionToken;
-      this.settings.sessionExpiresAt = Date.parse(session.expiresAt);
-      this.settings.lastValidatedAt = Date.now();
-      if (session.customerId) this.settings.customerId = session.customerId;
-      this.settings.everValidated = true;
-      await this.saveSettings();
-      await this.refreshLicenseStatus();
-      this.openSettings("license");
-      const tag = customer ? ` (${customer})` : "";
-      new Notice(`License recovered${tag}.`, 5000);
-    } catch (err) {
-      const msg = err instanceof LicenseClientError && err.kind === "license_invalid"
-        ? "Recovery link's key is not valid (revoked, expired, or unrecognized)."
-        : "Couldn't validate the recovered license. Try again from Settings → License.";
-      new Notice(msg, 8000);
-      this.openSettings("license");
-    }
+  async handleRecoveryDeepLink(_rawKey?: string, _rawCustomer?: string): Promise<void> {
+    return;
   }
 
   async onload() {
@@ -1128,21 +1131,14 @@ export default class ButterEditorPlugin extends Plugin {
     // the common case (cached token still fresh) this is a no-op.
     this.licenseClient = new LicenseClient();
     void this.resumeTrialActivation();
-    // Magic-link recovery deep-link. The Worker's HTML recovery page
-    // renders a button as obsidian://butter-recover?key=…&customer=…
-    // - clicking it brings Obsidian to front and lands here. See
-    // handleRecoveryDeepLink for the security note.
-    this.registerObsidianProtocolHandler("butter-recover", (params) => {
-      void this.handleRecoveryDeepLink(params.key, params.customer);
-    });
 
-    // Boot toast announcing the running plugin + version. Reads
-    // straight from the loaded manifest so dev builds (which inject
-    // a "(DEV)" suffix into the name and `-N` into the version)
-    // automatically show as `Butter Editor (DEV) v0.9.2-127`, while
-    // production builds show `Butter Editor v0.9.2`. The counter in
-    // the dev version tells you whether a rebuild actually loaded.
-    new Notice(`${this.manifest.name} v${this.manifest.version}`, 3000);
+    // Boot toast announcing a new plugin version (once per version).
+    const version = this.manifest.version;
+    if (this.settings.lastNotifiedVersion !== version) {
+      new Notice(`${this.manifest.name} v${version}`, 3000);
+      this.settings.lastNotifiedVersion = version;
+      void this.saveSettings();
+    }
 
     // Locked-file UX. When another process holds a vault file open
     // exclusively (VS Code, antivirus mid-scan, another Obsidian
@@ -1364,13 +1360,14 @@ export default class ButterEditorPlugin extends Plugin {
       // view + every future one. ButterEditorView wires it itself
       // in onOpen - only markdown views need the injection here.
       this.installCycleButtonsOnAllMarkdownViews();
-      // First-launch onboarding. Fires only when the user hasn't yet
-      // either picked a preset or dismissed the modal - both paths
-      // set the flag so subsequent launches skip silently.
-      if (!this.settings.hasCompletedOnboarding) {
-        new WelcomeModal(this.app, this).open();
-      }
+      // First-launch onboarding disabled — bypass persists across updates.
     });
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.syncZenModeWithWorkspace();
+      }),
+    );
+
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
         this.installCycleButtonsOnAllMarkdownViews();
@@ -1798,6 +1795,19 @@ export default class ButterEditorPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "toggle-zen-mode",
+      name: "Toggle zen mode",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "z" }],
+      checkCallback: (checking) => {
+        const inButter =
+          this.app.workspace.getActiveViewOfType(ButterEditorView) != null;
+        if (!inButter && !this.zenModeActive) return false;
+        if (!checking) this.toggleZenMode();
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: "toggle-frontmatter-visibility",
       name: "Toggle frontmatter visibility",
       callback: async () => {
@@ -2184,6 +2194,21 @@ export default class ButterEditorPlugin extends Plugin {
     }
   }
 
+  /** Re-mount every open Butter view so settings that affect PM
+   *  plugin composition (e.g. CM6 bridge) take effect without a
+   *  full Obsidian reload. Preserves scroll line where possible. */
+  public reloadOpenButterViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_BUTTER)) {
+      const view = leaf.view;
+      if (!(view instanceof ButterEditorView) || !view.file) continue;
+      const line = captureLine(leaf);
+      void leaf.setViewState(
+        { type: VIEW_TYPE_BUTTER, state: { file: view.file.path } },
+        { line },
+      );
+    }
+  }
+
   /** Push toolbar button visibility (from settings) to every active
    *  Butter view. Called from the settings tab when the user toggles
    *  a per-button hide/show. */
@@ -2217,6 +2242,7 @@ export default class ButterEditorPlugin extends Plugin {
             .setIcon("edit-3")
             .onClick(() => {
               const leaf = this.app.workspace.getLeaf(false);
+              this.markExplicitButterOpen(file.path);
               void leaf.setViewState({
                 type: VIEW_TYPE_BUTTER,
                 state: { file: file.path },
@@ -2357,21 +2383,49 @@ export default class ButterEditorPlugin extends Plugin {
   private registerNewFileHook() {
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
-        if (!this.settings.openNewFilesInButter) return;
         if (!file || file.extension !== "md") return;
-        // Poll for up to ~10 frames (~165ms @ 60fps) looking for a
-        // MarkdownView leaf showing the just-opened file. file-open
-        // fires at variable points across open paths:
-        //   - file-explorer click: leaf already mounted, find on attempt 0
-        //   - quick-switcher: usually 1-2 frames late
-        //   - link click that converts a butter leaf back to markdown:
-        //     Obsidian fires file-open BEFORE the view-type swap
-        //     completes, so we need to wait until the swap lands
-        // A fixed single-rAF deferral handled the easy paths but lost
-        // the race on the slow ones, leaving the leaf in Live Preview.
-        this.tryAutoSwapToButter(file, 0);
+        this.reconcileButterRouting(file);
       }),
     );
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        if (!(file instanceof TFile) || file.extension !== "md") return;
+        this.reconcileButterRouting(file);
+      }),
+    );
+  }
+
+  /** Apply frontmatter `butter` preference once metadata is available. */
+  private reconcileButterRouting(file: TFile) {
+    const openInButter = shouldOpenInButter(
+      this.app,
+      file,
+      this.settings.openNewFilesInButter,
+    );
+    if (!openInButter) {
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        const view = leaf.view;
+        if (
+          view instanceof ButterEditorView &&
+          view.file?.path === file.path &&
+          !this.isExplicitButterOpen(file.path)
+        ) {
+          swapButterToMarkdown(view);
+        }
+      });
+      return;
+    }
+    // Poll for up to ~10 frames (~165ms @ 60fps) looking for a
+    // MarkdownView leaf showing the just-opened file. file-open
+    // fires at variable points across open paths:
+    //   - file-explorer click: leaf already mounted, find on attempt 0
+    //   - quick-switcher: usually 1-2 frames late
+    //   - link click that converts a butter leaf back to markdown:
+    //     Obsidian fires file-open BEFORE the view-type swap
+    //     completes, so we need to wait until the swap lands
+    // A fixed single-rAF deferral handled the easy paths but lost
+    // the race on the slow ones, leaving the leaf in Live Preview.
+    this.tryAutoSwapToButter(file, 0);
   }
 
   /** Locate any leaf showing `file` as a MarkdownView and swap it to
@@ -2384,7 +2438,11 @@ export default class ButterEditorPlugin extends Plugin {
    *  view - those are the real signals worth noticing. */
   private tryAutoSwapToButter(file: TFile, attempt: number) {
     const MAX_ATTEMPTS = 10;
-    if (!this.settings.openNewFilesInButter) return;
+    const openInButter = shouldOpenInButter(
+      this.app,
+      file,
+      this.settings.openNewFilesInButter,
+    );
     let target: WorkspaceLeaf | null = null;
     let alreadyButter = false;
     this.app.workspace.iterateAllLeaves((leaf) => {
@@ -2398,7 +2456,8 @@ export default class ButterEditorPlugin extends Plugin {
         target = leaf;
       }
     });
-    if (alreadyButter) return; // routed directly via extension map - nothing to do
+    if (alreadyButter) return;
+    if (!openInButter) return;
     if (target) {
       debug("auto-butter", `swap on attempt ${attempt}:`, file.path);
       void (target as WorkspaceLeaf).setViewState({
@@ -2485,11 +2544,71 @@ export default class ButterEditorPlugin extends Plugin {
       this.settings.deviceId = crypto.randomUUID();
       deviceIdGenerated = true;
     }
+    const bypassDirty = this.ensureLicenseBypassState();
     // Persist the cleaned shape if we discarded anything - without
     // this the stale keys would re-appear in data.json on the next
     // save (since saveData writes the whole settings object). The
     // re-save is a no-op if `hadUnknownKeys` is false.
-    if (hadUnknownKeys || deviceIdGenerated) await this.saveSettings();
+    if (hadUnknownKeys || deviceIdGenerated || bypassDirty) await this.saveSettings();
+  }
+
+  /** Keep license-related settings in a bypassed state across plugin
+   *  updates, vault sync, and stale data.json from older builds. */
+  private ensureLicenseBypassState(): boolean {
+    let dirty = false;
+    const now = Date.now();
+    const farFuture = now + 100 * 365 * 24 * 60 * 60 * 1000;
+    const touch = () => { dirty = true; };
+
+    if (!this.settings.hasCompletedOnboarding) {
+      this.settings.hasCompletedOnboarding = true;
+      touch();
+    }
+    if (!this.settings.everValidated) {
+      this.settings.everValidated = true;
+      touch();
+    }
+    if (!this.settings.activatedAt) {
+      this.settings.activatedAt = now;
+      touch();
+    }
+    if (!this.settings.licenseKey) {
+      this.settings.licenseKey = "LOCAL-BYPASS";
+      touch();
+    }
+    if (!this.settings.sessionToken) {
+      this.settings.sessionToken = "local-bypass";
+      touch();
+    }
+    if ((this.settings.sessionExpiresAt || 0) < farFuture) {
+      this.settings.sessionExpiresAt = farFuture;
+      touch();
+    }
+    if ((this.settings.licenseExpiresAt || 0) < farFuture) {
+      this.settings.licenseExpiresAt = farFuture;
+      touch();
+    }
+    if (this.settings.pendingTrialActivation) {
+      this.settings.pendingTrialActivation = null;
+      touch();
+    }
+    if (this.settings.wasDeactivated) {
+      this.settings.wasDeactivated = false;
+      touch();
+    }
+    if (this.settings.wasInvalidated) {
+      this.settings.wasInvalidated = false;
+      touch();
+    }
+    if (this.settings.lastReason) {
+      this.settings.lastReason = "";
+      touch();
+    }
+    if (!this.settings.lastValidatedAt) {
+      this.settings.lastValidatedAt = now;
+      touch();
+    }
+    return dirty;
   }
 
   /** Resolve the user's main toolbar layout - returns the customized
@@ -2537,6 +2656,7 @@ export default class ButterEditorPlugin extends Plugin {
   }
 
   async saveSettings() {
+    this.ensureLicenseBypassState();
     await this.saveData(this.settings);
     // Re-apply on every save so the Debug-tab toggle takes effect
     // without reloading the plugin.

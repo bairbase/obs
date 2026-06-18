@@ -194,9 +194,6 @@ export class ButterSettingTab extends PluginSettingTab {
         case "advanced":
           this.renderAdvanced(body);
           break;
-        case "license":
-          this.renderLicense(body);
-          break;
       }
     };
 
@@ -227,7 +224,6 @@ export class ButterSettingTab extends PluginSettingTab {
     addTab("behavior", "Behavior");
     addTab("toolbar", "Toolbar");
     addTab("advanced", "Advanced");
-    addTab("license", "License");
     render();
     // Initial indicator visibility once layout has settled.
     window.requestAnimationFrame(updateIndicators);
@@ -282,78 +278,8 @@ export class ButterSettingTab extends PluginSettingTab {
   /** Async fetch + render of the live device list. Replaces the
    *  skeleton in `listEl` with real rows on resolve, or a graceful
    *  fallback on network/auth failure. */
-  public async fetchAndRenderDevices(listEl: HTMLElement) {
-    const sessionToken = this.plugin.settings.sessionToken;
-    if (sessionToken === "dev-fake") {
-      listEl.empty();
-      this.renderCurrentDeviceFallback(
-        listEl,
-        "Dev mode: Devices list bypassed.",
-      );
-      return;
-    }
-    if (!sessionToken) {
-      listEl.empty();
-      this.renderCurrentDeviceFallback(
-        listEl,
-        "Local session missing - re-paste your key to refresh the device list.",
-      );
-      return;
-    }
-    let devices: DeviceWireRecord[];
-    try {
-      devices = await this.plugin.licenseClient.listDevices(sessionToken);
-    } catch (err) {
-      listEl.empty();
-      if (err instanceof LicenseClientError) {
-        if (err.kind === "device_deactivated") {
-          // Server confirms this device was deactivated remotely.
-          // refreshLicenseStatus would normally clear local state,
-          // but listDevices doesn't go through that path - do it
-          // here, then re-render.
-          await this.plugin.refreshLicenseStatus();
-          (this as unknown as { display: () => void }).display();
-          return;
-        }
-        if (err.kind === "unauthorized") {
-          // Token expired client-side. Trigger refresh - that'll
-          // either re-issue or mark unlicensed.
-          await this.plugin.refreshLicenseStatus();
-          (this as unknown as { display: () => void }).display();
-          return;
-        }
-      }
-      // Network / polar / unknown - fall back to local-only view.
-      this.renderCurrentDeviceFallback(
-        listEl,
-        "Couldn't reach the licensing server. Showing this device only.",
-      );
-      return;
-    }
-
-    listEl.empty();
-    if (devices.length === 0) {
-      // Worker has no record of this device yet (legacy customer or
-      // pre-1.7.0 Worker). Fall back to local-only view.
-      this.renderCurrentDeviceFallback(
-        listEl,
-        "Paste your license key on another machine to add it here.",
-      );
-      return;
-    }
-
-    for (const device of devices) {
-      this.renderDeviceRow(listEl, device);
-    }
-
-    // Device-count summary line below the list. Always shown when
-    // there's at least one device - "1 device" doubles as the hint
-    // that you can add more.
-    const count = devices.length;
-    const summary = count === 1
-      ? "1 device · paste your key on another machine to add it here."
-      : `${count} devices on this license.`;
-    listEl.createDiv({ cls: "butter-license-devices-hint", text: summary });
+  public async fetchAndRenderDevices(_listEl: HTMLElement) {
+    return;
   }
 
   
@@ -369,70 +295,11 @@ export class ButterSettingTab extends PluginSettingTab {
    *  deactivated entry stays in the server-side list as a historical
    *  record. */
   public async deactivateCurrentDevice() {
-    const sessionToken = this.plugin.settings.sessionToken;
-    const oldDeviceId = this.plugin.settings.deviceId;
-    if (sessionToken) {
-      try {
-        await this.plugin.licenseClient.deactivateDevice(
-          sessionToken,
-          oldDeviceId,
-        );
-      } catch (err) {
-        // Server revoke failed - log it, but still clear local
-        // state so the user's "deactivate" intent succeeds locally.
-        // The new deviceId means re-validation will work either
-        // way; the worst case is the old deviceId stays usable on
-        // the server until its session token expires (≤7 days).
-        console.warn("[butter] device-deactivate server call failed:", err);
-      }
-    }
-    // Clear the in-flight license state. Note: we preserve
-    // `everValidated` so the user keeps offline grace if they
-    // re-paste the same key on this install - losing it on a
-    // self-initiated action would punish them for cleaning up.
-    // Same reason for clearing the sticky failure flags - a user
-    // who chose to deactivate isn't surprised by it.
-    this.plugin.settings.sessionToken = "";
-    this.plugin.settings.sessionExpiresAt = 0;
-    this.plugin.settings.lastValidatedAt = 0;
-    this.plugin.settings.licenseKey = "";
-    this.plugin.settings.customerId = "";
-    this.plugin.settings.customerEmail = "";
-    this.plugin.settings.licenseExpiresAt = 0;
-    this.plugin.settings.activatedAt = 0;
-    this.plugin.settings.wasDeactivated = false;
-    this.plugin.settings.wasInvalidated = false;
-    this.plugin.settings.lastReason = "";
-    this.plugin.settings.deviceId = (crypto).randomUUID();
-    await this.plugin.saveSettings();
-    await this.plugin.refreshLicenseStatus();
-    (this as unknown as { display: () => void }).display();
-    new Notice("This device deactivated.", 4000);
+    return;
   }
 
-  /** Sibling-device deactivation: revoke server-side, refresh the
-   *  list. The other device keeps its cached session token until
-   *  expiry (~7 days max); on its next /session refresh the Worker
-   *  returns device_deactivated and that device's local state
-   *  clears itself via main.ts's refreshLicenseStatus handler. */
-  public async deactivateSiblingDevice(deviceId: string) {
-    const sessionToken = this.plugin.settings.sessionToken;
-    if (!sessionToken) {
-      new Notice("Session expired - re-paste your key to refresh.", 5000);
-      return;
-    }
-    try {
-      await this.plugin.licenseClient.deactivateDevice(sessionToken, deviceId);
-      new Notice("Device deactivated.", 4000);
-    } catch (err) {
-      const msg = err instanceof LicenseClientError
-        ? this.friendlyError(err)
-        : "Couldn't reach the licensing server.";
-      new Notice(msg, 5000);
-      return;
-    }
-    // Re-render Devices section to reflect the change.
-    (this as unknown as { display: () => void }).display();
+  public async deactivateSiblingDevice(_deviceId: string) {
+    return;
   }
 
   
@@ -498,223 +365,23 @@ export class ButterSettingTab extends PluginSettingTab {
    *  inline poll loop. Idempotent - a second tap while polling is a
    *  no-op. */
   public async beginTrialActivation(): Promise<void> {
-    this.plugin.isActivatingTrialFlow = false; // Clear UI flag instantly
-    if (this.plugin.settings.pendingTrialActivation) {
-      return;
-    }
-
-    // Show pending state immediately so the user knows it's working
-    this.plugin.settings.pendingTrialActivation = { pollToken: "", startedAt: Date.now() };
-    (this as unknown as { display: () => void }).display();
-
-    try {
-      const resp = await this.plugin.licenseClient.startInstantTrial(
-        this.plugin.settings.deviceId,
-      );
-      this.plugin.settings.licenseKey = resp.licenseKey;
-      this.plugin.settings.licenseExpiresAt = Date.parse(resp.expiresAt);
-      this.plugin.settings.everValidated = true;
-      this.plugin.settings.activatedAt = Date.now();
-      this.plugin.settings.pendingTrialActivation = null;
-      await this.plugin.saveSettings();
-      await this.plugin.refreshLicenseStatus();
-      new Notice(`Trial activated! You have ${TRIAL_LENGTH_DAYS} days of full access.`, 5000);
-      import("canvas-confetti").then((module) => {
-        const confetti = module.default || module;
-        void confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      }).catch(() => {});
-    } catch (err) {
-      this.plugin.settings.pendingTrialActivation = null;
-      console.error("[beginTrialActivation] Error starting trial:", err);
-      if (err instanceof LicenseClientError && err.kind === "trial_used") {
-        new Notice(
-          "Your free trial has already been used on this device. Purchase a license to keep using Butter.",
-          10_000,
-        );
-        this.plugin.settings.everValidated = true;
-        this.plugin.settings.lastReason = "trial_used";
-        await this.plugin.saveSettings();
-      } else {
-        const msg = err instanceof LicenseClientError
-          ? this.friendlyError(err)
-          : "Couldn't reach the licensing server.";
-        new Notice(msg, 7000);
-      }
-    }
-    (this as unknown as { display: () => void }).display();
+    return;
   }
 
   public openCheckoutAndPoll(): void {
-    this.plugin.startLifetimeCheckoutFlow();
+    return;
   }
 
-  /** Single `/trial/poll` request. Updates settings on `ready`,
-   *  re-renders accordingly. Re-arms via `display()` if still
-   *  polling. */
   public async runTrialPollOnce(): Promise<void> {
-    const pending = this.plugin.settings.pendingTrialActivation;
-    if (!pending) {
-      return;
-    }
-    const ageMs = Date.now() - (pending.startedAt || 0);
-    if (ageMs > 30 * 60_000) {
-      console.warn("[runTrialPollOnce] Trial activation timed out (30m).");
-      this.plugin.settings.pendingTrialActivation = null;
-      await this.plugin.saveSettings();
-      new Notice(
-        "Trial activation timed out. Open settings → license to try again.",
-        10_000,
-      );
-      (this as unknown as { display: () => void }).display();
-      return;
-    }
-    try {
-      const res = await this.plugin.licenseClient.pollTrial(pending.pollToken);
-      if (res.status === "ready" && res.licenseKey) {
-        this.plugin.settings.licenseKey = res.licenseKey;
-        if (res.expiresAt) {
-          const exp = Date.parse(res.expiresAt);
-          if (!Number.isNaN(exp)) this.plugin.settings.licenseExpiresAt = exp;
-        }
-        this.plugin.settings.pendingTrialActivation = null;
-        if (!this.plugin.settings.activatedAt) {
-          this.plugin.settings.activatedAt = Date.now();
-        }
-        // Fresh activation clears any sticky failure flags from a
-        // prior state. customerEmail + tier get populated by the
-        // first /session call that follows (via refreshLicenseStatus
-        // below); we don't need to clear them since this is a brand
-        // new license attaching to this device.
-        this.plugin.settings.wasDeactivated = false;
-        this.plugin.settings.wasInvalidated = false;
-        this.plugin.settings.lastReason = "";
-        await this.plugin.saveSettings();
-        await this.plugin.refreshLicenseStatus();
-        new Notice("Trial activated!", 4000);
-        
-        import("canvas-confetti").then((module) => {
-          const confetti = module.default || module;
-          void confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 }
-          });
-        }).catch(e => console.error("Confetti failed to load:", e));
-
-        (this as unknown as { display: () => void }).display();
-        return;
-      }
-    } catch (err) {
-      console.error(`[runTrialPollOnce] Error polling trial:`, err);
-      if (err instanceof LicenseClientError && err.kind === "invalid_token") {
-        // Token rotted - reset and let the user retry.
-        this.plugin.settings.pendingTrialActivation = null;
-        await this.plugin.saveSettings();
-        (this as unknown as { display: () => void }).display();
-        return;
-      }
-      // Transient - fall through, schedule next tick.
-    }
-    // Pending. Re-render so the "Still working on it…" copy can
-    // appear once we cross the 25s threshold, then re-schedule.
-    (this as unknown as { display: () => void }).display();
+    return;
   }
 
-  /**
-   * Validate-license-key flow: call /session, persist the issued
-   * sessionToken, refresh status. On failure, show the typed error
-   * message inline beneath the input.
-   */
   public async validateLicenseKeyFlow(
-    licenseKey: string,
-    errorEl: HTMLElement | null,
+    _licenseKey: string,
+    _errorEl: HTMLElement | null,
   ): Promise<void> {
-    if (errorEl) errorEl.addClass("butter-hidden");
-    try {
-      const session = await this.plugin.licenseClient.validateAndIssueSession(
-        licenseKey,
-        this.plugin.settings.deviceId,
-      );
-      this.plugin.settings.licenseKey = licenseKey;
-      this.plugin.settings.sessionToken = session.sessionToken;
-      this.plugin.settings.sessionExpiresAt = Date.parse(session.expiresAt);
-      this.plugin.settings.lastValidatedAt = Date.now();
-      if (session.customerId) this.plugin.settings.customerId = session.customerId;
-      if (session.email) this.plugin.settings.customerEmail = session.email;
-      if (session.tier) this.plugin.settings.tier = session.tier;
-      this.plugin.settings.everValidated = true;
-      if (!this.plugin.settings.activatedAt) {
-        this.plugin.settings.activatedAt = Date.now();
-      }
-      // Fresh activation clears any sticky failure flags from a
-      // prior state so the License tab doesn't briefly show
-      // "deactivated"/"invalidated" between save + re-render.
-      this.plugin.settings.wasDeactivated = false;
-      this.plugin.settings.wasInvalidated = false;
-      this.plugin.settings.lastReason = "";
-      await this.plugin.saveSettings();
-      await this.plugin.refreshLicenseStatus();
-      (this as unknown as { display: () => void }).display();
-      new Notice("License activated.", 4000);
-
-      import("canvas-confetti").then((module) => {
-        const confetti = module.default || module;
-        void confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      }).catch(e => console.error("Confetti failed to load:", e));
-    } catch (err) {
-      const msg = err instanceof LicenseClientError
-        ? this.friendlyError(err)
-        : "Couldn't reach the licensing server.";
-      if (errorEl) {
-        errorEl.textContent = msg;
-        errorEl.removeClass("butter-hidden");
-      } else {
-        new Notice(msg, 7000);
-      }
-    }
+    return;
   }
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
 
   /** Drift-check wrapper for a bundled-setting toggle. If changing
    *  `settingKey` to `newValue` would move the user out of an active

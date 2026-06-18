@@ -179,7 +179,7 @@ import type { SourcePurityMode } from "../welcome-modal";
 
     new Setting(common)
       .setName("Open notes in Butter")
-      .setDesc("Markdown files open directly in Butter. Reload Obsidian after toggling.")
+      .setDesc("Markdown files open directly in Butter. Reload Obsidian after toggling. Override per note with frontmatter: butter: true or butter: false.")
       .addToggle((t) =>
         t
           .setValue(this.plugin.settings.openNewFilesInButter)
@@ -344,6 +344,22 @@ import type { SourcePurityMode } from "../welcome-modal";
             await this.plugin.saveSettings();
           }),
       );
+    const cm6Bridge = new Setting(compat)
+      .setName("CM6 plugin widgets")
+      .setDesc("Render inline widgets from other plugins (Dataview, Tasks, Templater, etc.) inside Butter. Uses more memory and CPU per edit. Reopens open Butter notes when toggled.")
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.enableCM6Bridge)
+          .onChange(async (v) => {
+            this.plugin.settings.enableCM6Bridge = v;
+            await this.plugin.saveSettings();
+            this.plugin.reloadOpenButterViews();
+          }),
+      );
+    cm6Bridge.nameEl.createSpan({
+      cls: "butter-preset-tag is-experimental",
+      text: "Experimental",
+    });
     const themeCompat = new Setting(compat)
       .setName("Max theme compatibility")
       .setDesc("Let more theme styles apply inside Butter by sharing a class with Reading mode. Gives better theme coverage, but some themes may interfere with editing.")

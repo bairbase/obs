@@ -16,16 +16,8 @@ import { keymap } from "prosemirror-keymap";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
 
-// Extensions MUST be registered before schema.ts or obsidian-md-bridge
-// evaluate their module bodies - those are where the registry is
-// read to build the live schema / token handlers / serializers.
-// The internal Extension API exists, but no example extensions are
-// activated in shipped builds. The dogfooded `:::spoiler` block +
-// `@username` inline atom previously imported from
-// `./integration/extensions-examples` are now developer reference
-// only (see that file's header). To turn them back on for local
-// dev / testing, re-add the side-effect import here ABOVE the
-// schema/parser/serializer imports below.
+// Spoiler + @mention extensions register via main.ts import of
+// extensions-examples (before schema). Spoiler uses spoiler-view.ts.
 
 import { schema } from "../core/schema";
 import { parser } from "../core/parser";
@@ -89,7 +81,6 @@ import {
 } from "../core/raw-block-safety";
 import { SaveScheduler } from "../ui/save-scheduler";
 import { scrollHostTop, runClipboardCommand } from "../util/dom-utils";
-import { mountLicenseBanner, type LicenseBanner } from "../ui/license-banner";
 import {
   NodeViewManager,
   codeBlockView,
@@ -107,12 +98,14 @@ import {
   blockIdView,
   rawBlockView,
 } from "../editor/nodeviews";
+import { spoilerView } from "../editor/spoiler-view";
 
 export const VIEW_TYPE_BUTTER = "butter-editor";
 export const VIEW_TYPE_BUTTER_LOCKED = "butter-locked-file";
 import type ButterEditorPlugin from "../main";
 import { cycleView, modeIcon, refreshButterMobileBodyClass, StatusState } from "../main";
 import type { ButterSettings } from "../main";
+import { shouldOpenInButter } from "../util/butter-preference";
 
 export class ButterEditorView extends TextFileView {
   private pmView: EditorView | null = null;
@@ -166,11 +159,6 @@ export class ButterEditorView extends TextFileView {
    *  on view-type swaps), we stash the state and replay it right
    *  after the PM view is live. */
   private pendingEphemeralState: unknown = null;
-  /** License-required banner mounted at the top of the editor when
-   *  status is anything other than valid/trial. Lazily attached on
-   *  view open, refreshed by the `butter:license-changed` workspace
-   *  event, destroyed on view close. */
-  private licenseBanner: LicenseBanner | null = null;
   /** Cached full-doc markdown, keyed by PM doc reference. Invalidated
    *  whenever the doc changes (new reference). Saves re-serializing
    *  when multiple code paths ask for the same view data in one frame
@@ -464,80 +452,6 @@ export class ButterEditorView extends TextFileView {
     this.registerDomEvent(window, "focusout", schedule);
 
     updateState();
-
-    // ── DIAGNOSTIC: dump ALL elements in top 100px AND ALL
-    // pseudo-elements on those, with full computed background +
-    // background-image. Don't outline (confusing). Instead, show
-    // every element's bg even if the user can't see it directly.
-    window.setTimeout(() => {
-      try {
-        const cutoff = 100;
-        const all = activeDocument.body.querySelectorAll("*");
-        const lines: string[] = [];
-        lines.push("All elements in top 100px with non-empty bg or bg-image:");
-        for (const el of Array.from(all)) {
-          if (!(el.instanceOf(HTMLElement))) continue;
-          const r = el.getBoundingClientRect();
-          if (r.bottom < 0 || r.top > cutoff) continue;
-          if (r.width === 0 || r.height === 0) continue;
-          const cs = getComputedStyle(el);
-          const tag = el.tagName.toLowerCase();
-          const cls =
-            typeof el.className === "string" && el.className
-              ? "." + el.className.split(/\s+/).slice(0, 6).join(".")
-              : "";
-          const interesting =
-            (cs.backgroundImage && cs.backgroundImage !== "none") ||
-            (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent");
-          if (!interesting) continue;
-          lines.push(`${tag}${cls}`);
-          lines.push(`  rect: top=${Math.round(r.top)} h=${Math.round(r.height)} w=${Math.round(r.width)}`);
-          lines.push(`  bg-color: ${cs.backgroundColor}`);
-          lines.push(`  bg-image: ${cs.backgroundImage.slice(0, 200)}`);
-          lines.push(`  position: ${cs.position} z=${cs.zIndex}`);
-          lines.push("");
-        }
-        // Now pseudo-elements
-        lines.push("---PSEUDOS---");
-        for (const el of Array.from(all)) {
-          if (!(el.instanceOf(HTMLElement))) continue;
-          const r = el.getBoundingClientRect();
-          if (r.bottom < 0 || r.top > cutoff) continue;
-          if (r.width === 0 || r.height === 0) continue;
-          for (const pseudo of ["::before", "::after"]) {
-            const pcs = getComputedStyle(el, pseudo);
-            if (pcs.content === "none" || pcs.content === "normal") continue;
-            const bg = pcs.backgroundImage;
-            const bgc = pcs.backgroundColor;
-            const interesting =
-              (bg && bg !== "none") ||
-              (bgc && bgc !== "rgba(0, 0, 0, 0)" && bgc !== "transparent");
-            if (!interesting) continue;
-            const tag = el.tagName.toLowerCase();
-            const cls =
-              typeof el.className === "string" && el.className
-                ? "." + el.className.split(/\s+/).slice(0, 6).join(".")
-                : "";
-            lines.push(`${tag}${cls}${pseudo}`);
-            lines.push(`  bg-color: ${bgc}`);
-            lines.push(`  bg-image: ${bg.slice(0, 200)}`);
-            lines.push(`  pos: ${pcs.position}, top=${pcs.top} bot=${pcs.bottom} h=${pcs.height}`);
-            lines.push("");
-          }
-        }
-        const path = "_butter-top-outline.md";
-        const body = "```\n" + lines.join("\n") + "\n```\n";
-        const existing = this.app.vault.getAbstractFileByPath(path);
-        if (existing instanceof TFile) {
-          void this.app.vault.modify(existing, body);
-        } else {
-          void this.app.vault.create(path, body);
-        }
-      } catch (err) {
-        console.warn("butter-diag: outline failed", err);
-      }
-    }, 1500);
-    // ───────────────────────────────────────────────────────────
   }
 
   public applyToolbarPosition() {
@@ -546,9 +460,8 @@ export class ButterEditorView extends TextFileView {
     const content = this.contentEl; // .view-content
     if (!leaf || !content || !this.toolbarDom) return;
 
-    const bannerActive = !(this.plugin.licenseStatus === "valid" || this.plugin.licenseStatus === "trial");
-    const style = bannerActive ? "attached" : this.settings.toolbarStyle;
-    const pos = bannerActive ? "top" : this.settings.toolbarPosition;
+    const style = this.settings.toolbarStyle;
+    const pos = this.settings.toolbarPosition;
     this.toolbarDom.setAttribute("data-toolbar-style", style);
     this.toolbarDom.setAttribute("data-toolbar-pos", pos);
     content.setAttribute("data-toolbar-pos", pos);
@@ -709,9 +622,6 @@ export class ButterEditorView extends TextFileView {
     if (this.toolbarDom.parentElement !== stack) {
       stack.appendChild(this.toolbarDom);
     }
-    // Re-anchor the license banner into the (possibly new) stack so
-    // it stays glued to the toolbar across style + position changes.
-    this.licenseBanner?.refresh();
   }
 
   /**
@@ -764,14 +674,7 @@ export class ButterEditorView extends TextFileView {
   }
 
   /** True when the editor should accept user input. Read on every PM
-   *  transaction dispatch (PM's `editable` prop is a callback) so a
-   *  status flip mid-session takes effect without re-mounting. Two
-   *  inputs:
-   *    - `mobileEditable` - existing mobile keyboard-down lock
-   *    - `plugin.licenseStatus` - read-only when no license is active
-   *  License-required mode preserves the visual editor (cursor, scroll,
-   *  selection still work) but blocks edits, matching the user-chosen
-   *  "gentle gate" UX. */
+   *  transaction dispatch (PM's `editable` prop is a callback). */
   isEditable(): boolean {
     return this.mobileEditable;
   }
@@ -1259,9 +1162,33 @@ export class ButterEditorView extends TextFileView {
 
   // ── Lifecycle ──
 
+  private redirectToSourceMode() {
+    if (!this.file) return;
+    const line = this.visibleHeadingLine();
+    void this.leaf.setViewState(
+      {
+        type: "markdown",
+        state: { file: this.file.path, mode: "source" },
+      },
+      { line },
+    );
+  }
+
   async onOpen() {
     this.destroyed = false;
 
+    if (
+      this.file &&
+      !this.plugin.isExplicitButterOpen(this.file.path) &&
+      !shouldOpenInButter(
+        this.app,
+        this.file,
+        this.plugin.settings.openNewFilesInButter,
+      )
+    ) {
+      this.redirectToSourceMode();
+      return;
+    }
 
     const container = this.contentEl;
     container.empty();
@@ -1319,23 +1246,6 @@ export class ButterEditorView extends TextFileView {
     this.propertiesEl = container.createDiv({
       cls: "butter-properties-wrapper markdown-source-view cm-s-obsidian is-live-preview show-properties",
     });
-
-    // License-required banner. Mounts above the title (on mobile) or
-    // above the toolbar at the leaf level (on desktop), using the same
-    // positioning logic as the top-pinned attached toolbar.
-    const bannerWrapper = container.createDiv({
-      cls: "butter-license-banner-wrapper",
-    });
-    this.licenseBanner = mountLicenseBanner(container, this.inlineTitleEl, bannerWrapper, this.plugin, this.containerEl);
-    this.registerEvent(
-      this.app.workspace.on("butter:license-changed" as never, () => {
-        this.licenseBanner?.refresh();
-        this.applyToolbarPosition();
-        if (this.pmView) {
-          this.pmView.dispatch(this.pmView.state.tr);
-        }
-      }),
-    );
 
     // Toolbar
     const plugin = this.app.plugins?.plugins?.["butter-editor"] as
@@ -1440,7 +1350,7 @@ export class ButterEditorView extends TextFileView {
           await plugin.saveSettings();
           plugin.applyToolbarPositionToAllViews();
         };
-        const setStyle = async (s: "attached" | "detached") => {
+        const setStyle = async (s: "attached" | "detached" | "integrated") => {
           plugin.settings.toolbarStyle = s;
           await plugin.saveSettings();
           plugin.applyToolbarPositionToAllViews();
@@ -1477,6 +1387,12 @@ export class ButterEditorView extends TextFileView {
             s.setIcon("square-dashed");
             if (plugin.settings.toolbarStyle === "detached") s.setChecked(true);
             s.onClick(() => void setStyle("detached"));
+          });
+          sub.addItem((s) => {
+            s.setTitle("Integrated");
+            s.setIcon("layout-dashboard");
+            if (plugin.settings.toolbarStyle === "integrated") s.setChecked(true);
+            s.onClick(() => void setStyle("integrated"));
           });
         });
         menu.addSeparator();
@@ -1723,6 +1639,7 @@ export class ButterEditorView extends TextFileView {
         block_id: blockIdView(),
         image: imageView(this.app, getSourcePath),
         raw_block: rawBlockView(),
+        butter_spoiler: spoilerView(),
       },
     });
     this.pmView = pmView;
@@ -1800,12 +1717,7 @@ export class ButterEditorView extends TextFileView {
 
   async onClose() {
     this.destroyed = true;
-    // Tear down the license banner. registerEvent handles the
-    // workspace listener cleanup automatically.
-    if (this.licenseBanner) {
-      this.licenseBanner.destroy();
-      this.licenseBanner = null;
-    }
+    activeDocument.body.classList.remove("butter-status-bar-hide");
     // Flush pending save NOW so we don't lose the user's most
     // recent typing when the view closes (common on file switch).
     if (this.saveScheduler) {
