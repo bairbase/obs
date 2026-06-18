@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  push-to-master:
+    runs-on: ubuntu-latest
+    if: "!github.event.release.prerelease"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            styles.css
+
+      - name: Push release commit to master and clean up
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          COMMIT=$(git rev-list -n 1 "refs/tags/$TAG")
+          echo "Pushing $TAG ($COMMIT) to master"
+          git push origin "$COMMIT:refs/heads/master"
+          if git ls-remote --exit-code origin refs/heads/review >/dev/null 2>&1; then
+            git push origin --delete refs/heads/review
+            echo "Deleted review branch"
+          else
+            echo "No review branch to clean up"
+          fi
